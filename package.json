@@ -1,0 +1,16 @@
+{
+  "name": "dailey-template-api",
+  "version": "1.0.0",
+  "description": "Production-ready REST API with JWT auth, pagination, and auto-generated docs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "migrate": "node migrate.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

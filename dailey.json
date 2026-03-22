@@ -1,0 +1,9 @@
+{
+  "name": "API Backend",
+  "description": "Production-ready REST API with JWT auth, pagination, and auto-generated docs",
+  "icon": "server",
+  "category": "backend",
+  "services": { "database": true, "auth": false },
+  "repo": "https://github.com/jonndailey/dailey-template-api.git",
+  "branch": "main"
+}
