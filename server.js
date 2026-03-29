@@ -341,7 +341,7 @@ app.get('/docs', (req, res) => {
 <header><div class="container"><h1>API Documentation</h1><p>RESTful API with JWT authentication, pagination, and filtering</p></div></header>
 <main class="container">
   <div class="note">
-    <strong>Base URL:</strong> <code>\${baseUrl}</code><br>
+    <strong>Base URL:</strong> <code>${baseUrl}</code><br>
     <strong>Authentication:</strong> Include <code>Authorization: Bearer &lt;token&gt;</code> header for protected endpoints.
   </div>
 
