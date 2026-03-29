@@ -300,6 +300,9 @@ app.get('/health', async (req, res) => {
 // API DOCS PAGE
 // =====================
 app.get('/docs', (req, res) => {
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+  const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
   const CSS = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; background: #f8f9fa; }
@@ -338,7 +341,7 @@ app.get('/docs', (req, res) => {
 <header><div class="container"><h1>API Documentation</h1><p>RESTful API with JWT authentication, pagination, and filtering</p></div></header>
 <main class="container">
   <div class="note">
-    <strong>Base URL:</strong> <code>${process.env.BASE_URL || 'http://localhost:' + PORT}</code><br>
+    <strong>Base URL:</strong> <code>\${baseUrl}</code><br>
     <strong>Authentication:</strong> Include <code>Authorization: Bearer &lt;token&gt;</code> header for protected endpoints.
   </div>
 
