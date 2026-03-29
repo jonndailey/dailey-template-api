@@ -14,6 +14,7 @@ async function getPool() {
   return pool;
 }
 
+app.set('trust proxy', true);
 app.use(express.json());
 
 // CORS
@@ -300,8 +301,8 @@ app.get('/health', async (req, res) => {
 // API DOCS PAGE
 // =====================
 app.get('/docs', (req, res) => {
-  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host || `localhost:${PORT}`;
+  const protocol = req.headers['x-forwarded-proto'] || (host.endsWith('.dailey.cloud') ? 'https' : req.protocol) || 'http';
   const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
   const CSS = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
