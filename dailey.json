@@ -5,5 +5,8 @@
   "category": "backend",
   "services": { "database": true, "auth": false },
   "repo": "https://github.com/jonndailey/dailey-template-api.git",
-  "branch": "main"
+  "branch": "main",
+  "env": {
+    "JWT_SECRET": { "autoGenerate": true, "length": 48, "label": "JWT signing secret" }
+  }
 }
