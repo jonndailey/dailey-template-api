@@ -1,0 +1,166 @@
+name: Validate dailey.json
+
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate dailey.json
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const jsonPath = path.join(process.cwd(), "dailey.json");
+          const yamlPath = path.join(process.cwd(), "dailey.yaml");
+
+          if (!fs.existsSync(jsonPath)) {
+            if (fs.existsSync(yamlPath)) {
+              console.log("dailey.yaml detected; skipping validation (yaml not supported by this workflow yet).");
+              process.exit(0);
+            }
+            console.error("ERROR: neither dailey.json nor dailey.yaml found at repo root");
+            process.exit(1);
+          }
+
+          let raw;
+          try {
+            raw = fs.readFileSync(jsonPath, "utf8");
+          } catch (e) {
+            console.error("ERROR: cannot read dailey.json:", e.message);
+            process.exit(1);
+          }
+
+          let cfg;
+          try {
+            cfg = JSON.parse(raw);
+          } catch (e) {
+            console.error("ERROR: dailey.json is not valid JSON:", e.message);
+            process.exit(1);
+          }
+
+          const errors = [];
+
+          if (cfg === null || typeof cfg !== "object" || Array.isArray(cfg)) {
+            console.error("ERROR: dailey.json must be a JSON object at the top level");
+            process.exit(1);
+          }
+
+          // Required top-level fields
+          const requiredStrings = ["name", "repo", "branch"];
+          for (const key of requiredStrings) {
+            if (!(key in cfg)) {
+              errors.push("missing required field: " + key);
+            } else if (typeof cfg[key] !== "string" || cfg[key].trim() === "") {
+              errors.push("field " + key + " must be a non-empty string");
+            }
+          }
+
+          // repo must look like a git URL
+          if (typeof cfg.repo === "string" && cfg.repo.trim() !== "") {
+            const r = cfg.repo.trim();
+            const looksGit =
+              r.startsWith("git@") ||
+              r.startsWith("https://") ||
+              r.startsWith("http://") ||
+              r.startsWith("ssh://") ||
+              r.startsWith("git://");
+            if (!looksGit) {
+              errors.push("field repo does not look like a git URL: " + r);
+            }
+          }
+
+          // Optional field type checks
+          const optionalStringFields = ["description", "icon", "category", "setup", "start", "notes"];
+          for (const key of optionalStringFields) {
+            if (key in cfg && typeof cfg[key] !== "string") {
+              errors.push("optional field " + key + " must be a string if present");
+            }
+          }
+          if ("services" in cfg && (cfg.services === null || typeof cfg.services !== "object" || Array.isArray(cfg.services))) {
+            errors.push("optional field services must be an object if present");
+          }
+          if ("ports" in cfg && (cfg.ports === null || typeof cfg.ports !== "object" || Array.isArray(cfg.ports))) {
+            errors.push("optional field ports must be an object if present");
+          }
+
+          // Denylist — env vars that must never be auto-generated
+          const DENYLIST = new Set([
+            "DB_PASSWORD","DATABASE_PASSWORD","MYSQL_PASSWORD","POSTGRES_PASSWORD","REDIS_PASSWORD",
+            "S3_ACCESS_KEY","S3_SECRET_KEY","S3_ACCESS_KEY_ID","S3_SECRET_ACCESS_KEY",
+            "AWS_SECRET_ACCESS_KEY","AWS_ACCESS_KEY_ID",
+            "STRIPE_SECRET_KEY","STRIPE_WEBHOOK_SECRET",
+            "GITHUB_TOKEN","GITHUB_CLIENT_SECRET","GITHUB_APP_PRIVATE_KEY",
+            "GOOGLE_CLIENT_SECRET","GOOGLE_API_KEY",
+            "OPENAI_API_KEY","ANTHROPIC_API_KEY",
+            "SENDGRID_API_KEY","CLOUDFLARE_API_TOKEN",
+            "DAILEY_AUTH_SECRET","DAILEY_API_KEY",
+            "PUBLIC_KEY","OAUTH_CLIENT_ID","CLIENT_ID"
+          ]);
+
+          // env block validation
+          let autoGenCount = 0;
+          if ("env" in cfg) {
+            const env = cfg.env;
+            if (env === null || typeof env !== "object" || Array.isArray(env)) {
+              errors.push("field env must be an object if present (got " + (Array.isArray(env) ? "array" : typeof env) + ")");
+            } else {
+              for (const [key, val] of Object.entries(env)) {
+                if (DENYLIST.has(key)) {
+                  errors.push("env." + key + " is on the denylist — this credential must come from real secrets, not auto-generation");
+                  continue;
+                }
+
+                // Valid forms: "auto", true, { autoGenerate: true, ... }
+                if (val === "auto" || val === true) {
+                  autoGenCount++;
+                  continue;
+                }
+                if (val === null || typeof val !== "object" || Array.isArray(val)) {
+                  errors.push("env." + key + " must be \"auto\", true, or an object with autoGenerate: true (got " + (val === null ? "null" : Array.isArray(val) ? "array" : typeof val) + ")");
+                  continue;
+                }
+                if (!("autoGenerate" in val)) {
+                  errors.push("env." + key + " object form must include autoGenerate: true");
+                  continue;
+                }
+                if (typeof val.autoGenerate !== "boolean") {
+                  errors.push("env." + key + ".autoGenerate must be a boolean (got " + typeof val.autoGenerate + ")");
+                  continue;
+                }
+                if (val.autoGenerate !== true) {
+                  errors.push("env." + key + ".autoGenerate must be true (false is not meaningful here)");
+                  continue;
+                }
+                if ("length" in val) {
+                  if (typeof val.length !== "number" || !Number.isFinite(val.length) || val.length < 1 || val.length > 256 || !Number.isInteger(val.length)) {
+                    errors.push("env." + key + ".length must be an integer between 1 and 256 (got " + JSON.stringify(val.length) + ")");
+                    continue;
+                  }
+                }
+                if ("label" in val && typeof val.label !== "string") {
+                  errors.push("env." + key + ".label must be a string if present (got " + typeof val.label + ")");
+                  continue;
+                }
+                autoGenCount++;
+              }
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error("dailey.json validation FAILED:");
+            for (const err of errors) console.error("  - " + err);
+            process.exit(1);
+          }
+
+          const displayName = typeof cfg.name === "string" ? cfg.name : "(unknown)";
+          console.log("\u2713 dailey.json valid for \"" + displayName + "\" (" + autoGenCount + " auto-generated env vars)");
+          '
